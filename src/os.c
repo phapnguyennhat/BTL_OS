@@ -149,7 +149,7 @@ static void read_config(const char * path) {
 		printf("Cannot find configure file at %s\n", path);
 		exit(1);
 	}
-	fscanf(file, "%d %d %d\n", &time_slot, &num_cpus, &num_processes);
+	fscanf(file, "%d %d %d[\n]", &time_slot, &num_cpus, &num_processes);
 	ld_processes.path = (char**)malloc(sizeof(char*) * num_processes);
 	ld_processes.start_time = (unsigned long*)
 		malloc(sizeof(unsigned long) * num_processes);
@@ -170,7 +170,7 @@ static void read_config(const char * path) {
 #endif
 
 #ifdef MM_PAGING
-	int sit;
+	//int sit;
 #ifdef MM_FIXED_MEMSZ
 	/* We provide here a back compatible with legacy OS simulatiom config file
 	 * In which, it have no addition config line for Mema, keep only one line
@@ -186,11 +186,13 @@ static void read_config(const char * path) {
 	 * Format: (size=0 result non-used memswap, must have RAM and at least 1 SWAP)
 	 *        MEM_RAM_SZ MEM_SWP0_SZ MEM_SWP1_SZ MEM_SWP2_SZ MEM_SWP3_SZ
 	*/
-	fscanf(file, "%d\n", &memramsz);
-	for(sit = 0; sit < PAGING_MAX_MMSWP; sit++)
-		fscanf(file, "%d", &(memswpsz[sit])); 
 
-	fscanf(file, "\n"); /* Final character */
+	// fscanf(file, "%d\n", &memramsz);
+	// for(sit = 0; sit < PAGING_MAX_MMSWP; sit++)
+	// 	fscanf(file, "%d", &(memswpsz[sit])); 
+
+	// fscanf(file, "\n"); /* Final character */
+
 #endif
 #endif
 
@@ -205,6 +207,7 @@ static void read_config(const char * path) {
 		strcat(ld_processes.path[i], "input/proc/");
 		char proc[100];
 #ifdef MLQ_SCHED
+		//fscanf(file, "%d %s[\n]", &start, proc);
 		fscanf(file, "%lu %s %lu\n", &ld_processes.start_time[i], proc, &ld_processes.prio[i]);
 #else
 		fscanf(file, "%lu %s\n", &ld_processes.start_time[i], proc);
@@ -304,6 +307,5 @@ int main(int argc, char * argv[]) {
 	return 0;
 
 }
-
 
 
