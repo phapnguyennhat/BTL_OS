@@ -84,15 +84,16 @@ int __alloc(struct pcb_t *caller, int vmaid, int rgid, int size, int *alloc_addr
 {
   /*Allocate at the toproof */
   pthread_mutex_lock(&mmvn_lock);
-  struct vm_rg_struct rgnode;
-
-  if (get_free_vmrg_area(caller, vmaid, size, &rgnode) == 0)
+  struct vm_rg_struct newrg;
+  // Từ caller --> mm của proc kết hợp với vmaid đẻ lấy vma (vùng nhớ)
+  // vùng nhớ ->vm_freerg_list để cấp cho size, newrg
+  if (get_free_vmrg_area(caller, vmaid, size, &newrg) == 0)
   {
+    // nếu tìm thấy vùng trống
+    caller->mm->symrgtbl[rgid].rg_start = newrg.rg_start;
+    caller->mm->symrgtbl[rgid].rg_end = newrg.rg_end;
 
-    caller->mm->symrgtbl[rgid].rg_start = rgnode.rg_start;
-    caller->mm->symrgtbl[rgid].rg_end = rgnode.rg_end;
-
-    *alloc_addr = rgnode.rg_start;
+    *alloc_addr = newrg.rg_start;
     pthread_mutex_lock(&mmvn_lock);
     return 0;
   }
@@ -206,26 +207,27 @@ int pgfree_data(struct pcb_t *proc, uint32_t reg_index)
  */
 int pg_getpage(struct mm_struct *mm, int pgn, int *fpn, struct pcb_t *caller)
 {
-  uint32_t pte = mm->pgd[pgn]; // page table entry
+  uint32_t pte = mm->pgd[pgn]; // page table entry //Paging base address
 
-  if (!PAGING_PAGE_PRESENT(pte)) // page not online and với 0x800000
+  if (!PAGING_PAGE_PRESENT(pte)) // page not online and với 0x800000  bit 32
   {                              /* Page is not online, make it actively living */
     int vicpgn, swpfpn;          // victim page number, swap frame number
     int vicfpn;                  // viction frame number
     uint32_t vicpte;             // viction page table entry
 
-    int tgtfpn = PAGING_SWP(pte); // the target frame storing our variable
+    int tgtfpn = PAGING_SWP(pte); // the target frame storing our variable 12-0
 
     /* TODO: Play with your paging theory here */
     /* Find victim page */
     if (find_victim_page(caller->mm, &vicpgn) == -1)
     {
-      // lấy victim_page theo cơ chế FIFO;
+      // lấy victim_page theo cơ chế FIFO; của mm->fifo_pgn
       return -1;
     }
 
     /* Get free frame in MEMSWP */
     // lấy frame trống để swap frame vào trong mswp
+    // swpfpn là một frame trống trong free_fp_list
     if (MEMPHY_get_freefp(caller->active_mswp, &swpfpn) == -1)
     {
       return -1;
@@ -258,7 +260,7 @@ int pg_getpage(struct mm_struct *mm, int pgn, int *fpn, struct pcb_t *caller)
     enlist_pgn_node(&caller->mm->fifo_pgn, pgn);
   }
 
-  *fpn = PAGING_FPN(pte);
+  *fpn = PAGING_FPN(pte); // nếu present get frame num
 
   return 0;
 }
@@ -469,7 +471,7 @@ int validate_overlap_vm_area(struct pcb_t *caller, int vmaid, int vmastart, int 
     return -1;
   while (vma != NULL)
   {
-    if (vma != cur_area && OVERLAP(cur_area->vm_start, cur_area->vm_end, vma->vm_start, vma->vm_end))
+    if (vma != cur_area && OVERLAP(cur_area->vm_start, vmaend, vma->vm_start, vma->vm_end))
     {
       return -1;
     }
@@ -490,7 +492,7 @@ int inc_vma_limit(struct pcb_t *caller, int vmaid, int inc_sz)
   int inc_amt = PAGING_PAGE_ALIGNSZ(inc_sz); // kích thước tăng thêm phù hợp với kích thước trang nhớ
   int incnumpage = inc_amt / PAGING_PAGESZ;  // số lượng trang nhớ cần
   struct vm_rg_struct *area = get_vm_area_node_at_brk(caller, vmaid, inc_sz, inc_amt);
-  // area có rg sbrk +inc_sz
+  // chi area có rg [sbrk +inc_sz]
   struct vm_area_struct *cur_vma = get_vma_by_num(caller->mm, vmaid);
 
   int old_end = cur_vma->vm_end;
@@ -526,6 +528,13 @@ int find_victim_page(struct mm_struct *mm, int *retpgn)
     return -1;
   }
   struct pgn_t *prev = NULL;
+  if (pg->pg_next == NULL)
+  {
+    // trường hợp chỉ có 1 page
+    *retpgn = pg->pgn;
+    free(pg);
+    return 0;
+  }
   while (pg->pg_next)
   {
     prev = pg;

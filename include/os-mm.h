@@ -46,7 +46,7 @@ struct vm_area_struct
     * Derived field
     * unsigned long vm_limit = vm_end - vm_start
     */
-   struct mm_struct *vm_mm;
+   struct mm_struct *vm_mm;             // cai này để làm gì v ???
    struct vm_rg_struct *vm_freerg_list; // link list vm_rg_struct trống
    struct vm_area_struct *vm_next;
 };
@@ -57,15 +57,16 @@ struct vm_area_struct
 struct mm_struct
 {
    // MEMORY MAPPING
-   uint32_t *pgd; // pagetable directory
+   uint32_t *pgd; // pagetable directory chứa tất cả các page table entry ánh xạ giữa page number sang frame number
 
-   struct vm_area_struct *mmap; // list memory area
+   struct vm_area_struct *mmap; // list memory area cho một pcb
 
    /* Currently we support a fixed number of symbol */
-   struct vm_rg_struct symrgtbl[PAGING_MAX_SYMTBL_SZ]; // symbol table
+   struct vm_rg_struct symrgtbl[PAGING_MAX_SYMTBL_SZ]; // ĐỊnh nghĩa số biến trong một proc
+   // memory regions in a separated contiguous memory area
 
    /* list of free page */
-   struct pgn_t *fifo_pgn; // co thẻ dùng hoặc không.
+   struct pgn_t *fifo_pgn;
 };
 
 /*
@@ -73,6 +74,7 @@ struct mm_struct
  */
 struct framephy_struct
 {
+   // chủ yếu lưu trữ frame number
    int fpn;
    struct framephy_struct *fp_next;
 
@@ -83,12 +85,12 @@ struct framephy_struct
 struct memphy_struct
 {
    /* Basic field of data and size */
-   BYTE *storage;
-   int maxsz;
+   BYTE *storage; // một array chứa các BYTE địa chỉ
+   int maxsz;     // Kích thước tối đa của storage
 
    /* Sequential device fields */
-   int rdmflg;
-   int cursor;
+   int rdmflg; // định nghĩa bộ nhớ truy cập ngẫu nhiên hay tuần tự
+   int cursor; // COn trỏ để theo dõi vị trí hiện tạitrong quá trình đọc ghi dl vào storage
 
    /* Management structure */
    struct framephy_struct *free_fp_list;

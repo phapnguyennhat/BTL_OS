@@ -12,17 +12,18 @@ int empty(struct queue_t *q)
 void enqueue(struct queue_t *q, struct pcb_t *proc)
 {
         /* TODO: put a new process to queue [q] */
-        // if (q->size == MAX_QUEUE_SIZE) // is full
-        //         return;
-        // q->proc[q->size] = proc;
-        // q->size++; // them mot proc co cung do uu tien vao trong queue
-
-        int proc_queue_is_having = q->size;
-        if (proc_queue_is_having < MAX_QUEUE_SIZE)
+        if (q == NULL)
         {
-                q->proc[proc_queue_is_having] = proc;
-                q->size = proc_queue_is_having + 1;
+                perror("Queue is NULL !\n");
+                exit(1);
         }
+        if (q->size == MAX_QUEUE_SIZE)
+        {
+                perror("Queue is full !\n");
+                exit(1);
+        }
+        q->proc[q->size] = proc;
+        q->size++;
 }
 
 struct pcb_t *dequeue(struct queue_t *q)
@@ -31,7 +32,7 @@ struct pcb_t *dequeue(struct queue_t *q)
          * in the queue [q] and remember to remove it from q
          * */
         int proc_queue_is_having = q->size;
-        if (proc_queue_is_having <= 0)
+        if (proc_queue_is_having <= 0 || q == NULL)
         {
                 return NULL;
         }
