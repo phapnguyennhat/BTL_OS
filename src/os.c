@@ -5,10 +5,12 @@
 #include "loader.h"
 #include "mm.h"
 
+#include <unistd.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+// #include <semaphore.h>
 
 static int time_slot;
 static int num_cpus;
@@ -58,11 +60,14 @@ static void *cpu_routine(void *args)
 	struct pcb_t *proc = NULL;
 	while (1)
 	{
+		usleep(3);
 		/* Check the status of current process */
 		if (proc == NULL)
 		{
 			/* No process is running, the we load new process from
 			 * ready queue */
+			usleep(3);
+
 			proc = get_proc();
 			if (proc == NULL)
 			{
@@ -76,6 +81,7 @@ static void *cpu_routine(void *args)
 			printf("\tCPU %d: Processed %2d has finished\n",
 						 id, proc->pid);
 			free(proc);
+			usleep(3);
 
 			proc = get_proc();
 			time_left = 0;
@@ -86,6 +92,8 @@ static void *cpu_routine(void *args)
 			printf("\tCPU %d: Put process %2d to run queue\n",
 						 id, proc->pid);
 			put_proc(proc);
+			usleep(20);
+
 			proc = get_proc();
 		}
 
@@ -108,6 +116,7 @@ static void *cpu_routine(void *args)
 		}
 		else if (time_left == 0)
 		{
+			usleep(5);
 			printf("\tCPU %d: Dispatched process %2d\n",
 						 id, proc->pid);
 			time_left = time_slot;

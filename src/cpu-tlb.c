@@ -68,8 +68,13 @@ int tlballoc(struct pcb_t *proc, uint32_t size, uint32_t reg_index)
   int fpn;
   int pgn_start = PAGING_PGN(addr);
   int pgn_end = PAGING_PGN((addr + size));
+  printf("pgnum-start: %d \n", PAGING_PGN((addr)));
+  printf("pgnum-end: %d \n", PAGING_PGN((addr + size)));
+  printf("reg_index: %d \n", reg_index);
+
   for (int pgn = pgn_start; pgn <= pgn_end; pgn++)
   {
+    printf("vong lap o alloc\n");
     tlb_cache_setup(proc, proc->pid, pgn, &fpn);
   }
 
@@ -83,7 +88,6 @@ int tlballoc(struct pcb_t *proc, uint32_t size, uint32_t reg_index)
  */
 int tlbfree_data(struct pcb_t *proc, uint32_t reg_index)
 {
-  __free(proc, 0, reg_index);
 
   /* TODO update TLB CACHED frame num of freed page(s)*/
   /* by using tlb_cache_read()/tlb_cache_write()*/
@@ -92,13 +96,20 @@ int tlbfree_data(struct pcb_t *proc, uint32_t reg_index)
   unsigned long rg_start = proc->mm->symrgtbl[reg_index].rg_start;
   unsigned long rg_end = proc->mm->symrgtbl[reg_index].rg_end;
   // int fpnumTLB = tlb->maxsz / PAGE_SIZE; // số frame trong tlb
-
   int pgn_start = PAGING_PGN(rg_start);
   int pgn_end = PAGING_PGN((rg_end));
+  printf("pgnum-start: %d \n", pgn_start);
+  printf("pgnum-end: %d \n", pgn_end);
+  printf("reg_index: %d \n", reg_index);
+
   for (int pgn = pgn_start; pgn <= pgn_end; pgn++)
   {
+    printf("vong lap o free\n");
+
     tlb_cache_setup(proc, proc->pid, pgn, &fpn);
   }
+  __free(proc, 0, reg_index);
+
   return 0;
 }
 

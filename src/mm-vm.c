@@ -82,58 +82,63 @@ struct vm_rg_struct *get_symrg_byid(struct mm_struct *mm, int rgid)
  */
 int __alloc(struct pcb_t *caller, int vmaid, int rgid, int size, int *alloc_addr)
 {
-  /*Allocate at the toproof */
   pthread_mutex_lock(&mmvn_lock);
-  struct vm_rg_struct newrg;
-  // Từ caller --> mm của proc kết hợp với vmaid đẻ lấy vma (vùng nhớ)
-  // vùng nhớ ->vm_freerg_list để cấp cho size, newrg
-  if (get_free_vmrg_area(caller, vmaid, size, &newrg) == 0)
-  {
-    // nếu tìm thấy vùng trống
-    caller->mm->symrgtbl[rgid].rg_start = newrg.rg_start;
-    caller->mm->symrgtbl[rgid].rg_end = newrg.rg_end;
 
-    *alloc_addr = newrg.rg_start;
-    pthread_mutex_lock(&mmvn_lock);
+  /*Allocate at the toproof */
+  struct vm_rg_struct rgnode;
+
+  if (get_free_vmrg_area(caller, vmaid, size, &rgnode) == 0)
+  {
+
+    caller->mm->symrgtbl[rgid].rg_start = rgnode.rg_start;
+    caller->mm->symrgtbl[rgid].rg_end = rgnode.rg_end;
+    *alloc_addr = rgnode.rg_start;
+    pthread_mutex_unlock(&mmvn_lock);
+
     return 0;
   }
 
   /* TODO get_free_vmrg_area FAILED handle the region management (Fig.6)*/
 
   /*Attempt to increate limit to get space */
-  // tăng giới hạn để lấy thêm không gian
   struct vm_area_struct *cur_vma = get_vma_by_num(caller->mm, vmaid);
-  int inc_sz = PAGING_PAGE_ALIGNSZ(size); // phân bổ trang (tổng số)
-  // int inc_limit_ret
-  int old_sbrk;
 
-  old_sbrk = cur_vma->sbrk;
+  int inc_sz = PAGING_PAGE_ALIGNSZ(size);
+  // int inc_limit_ret
+  int old_sbrk = cur_vma->sbrk;
 
   /* TODO INCREASE THE LIMIT
    * inc_vma_limit(caller, vmaid, inc_sz)
    */
-  if (inc_vma_limit(caller, vmaid, inc_sz) != 0)
+  cur_vma->sbrk += inc_sz;
+  if (inc_vma_limit(caller, vmaid, inc_sz))
   {
+    pthread_mutex_unlock(&mmvn_lock);
     return -1;
   }
-
   /*Successful increase limit */
   caller->mm->symrgtbl[rgid].rg_start = old_sbrk;
   caller->mm->symrgtbl[rgid].rg_end = old_sbrk + size;
 
+  if (cur_vma->vm_freerg_list->rg_start >= cur_vma->vm_freerg_list->rg_end)
+  {
+    cur_vma->vm_freerg_list->rg_start = old_sbrk + size;
+    cur_vma->vm_freerg_list->rg_end = cur_vma->sbrk;
+    pthread_mutex_unlock(&mmvn_lock);
+  }
+  else
+  {
+
+    struct vm_rg_struct *rg_elmt = malloc(sizeof(struct vm_rg_struct));
+    rg_elmt->rg_start = old_sbrk + size;
+    rg_elmt->rg_end = cur_vma->sbrk;
+
+    enlist_vm_freerg_list(caller->mm, rg_elmt);
+  }
+  pthread_mutex_unlock(&mmvn_lock);
+
   *alloc_addr = old_sbrk;
 
-  // kiểm tra sau khi tăng giới hạn và alloc vào nếu còn dư vm_rg thì thêm vào freerg_list
-  struct vm_area_struct *remain_rg = get_vma_by_num(caller->mm, vmaid);
-  if (old_sbrk + size < remain_rg->sbrk)
-  {
-    struct vm_rg_struct *rg_free = malloc(sizeof(struct vm_rg_struct));
-    rg_free->rg_start = old_sbrk + size;
-    rg_free->rg_end = remain_rg->sbrk;
-    enlist_vm_freerg_list(caller->mm, rg_free);
-  }
-
-  pthread_mutex_unlock(&mmvn_lock);
   return 0;
 }
 
@@ -147,30 +152,24 @@ int __alloc(struct pcb_t *caller, int vmaid, int rgid, int size, int *alloc_addr
 int __free(struct pcb_t *caller, int vmaid, int rgid)
 {
   pthread_mutex_lock(&mmvn_lock);
+
+  struct vm_rg_struct *rgnode = get_symrg_byid(caller->mm, rgid);
+  rgnode->rg_next = NULL;
   if (rgid < 0 || rgid > PAGING_MAX_SYMTBL_SZ)
   {
     pthread_mutex_unlock(&mmvn_lock);
+
     return -1;
   }
 
   /* TODO: Manage the collect freed region to freerg_list */
-  struct vm_rg_struct *rgnode = get_symrg_byid(caller->mm, rgid);
-  if (rgnode->rg_start == 0 && rgnode->rg_end == 0)
-  {
-    pthread_mutex_unlock(&mmvn_lock);
-    return -1;
-  }
-  struct vm_rg_struct *freerg_node = malloc(sizeof(struct vm_rg_struct));
-  freerg_node->rg_start = rgnode->rg_start;
-  freerg_node->rg_end = rgnode->rg_end;
-  freerg_node->rg_next = NULL;
-
-  rgnode->rg_start = rgnode->rg_end = 0;
-  rgnode->rg_next = NULL;
-
+  caller->mm->symrgtbl[rgid].rg_start = 0;
+  caller->mm->symrgtbl[rgid].rg_end = 0;
   /*enlist the obsoleted memory region */
-  enlist_vm_freerg_list(caller->mm, freerg_node);
   pthread_mutex_unlock(&mmvn_lock);
+
+  enlist_vm_freerg_list(caller->mm, rgnode);
+  printf("Free done\n");
   return 0;
 }
 

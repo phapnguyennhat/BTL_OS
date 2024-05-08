@@ -61,17 +61,10 @@ int tlb_cache_setup(struct pcb_t *proc, int pid, int pgn, int *fpn)
       // miss return -1;
       if (pg_getpage(proc->mm, pgn, fpn, proc) != 0) // get_page trong ram
          return -3000;                               /* invalid page access */
-      if (proc->pid == tlb->pgd[pgn % pgsizeTLB]->pid)
-      {
-         tlb->pgd[pgn % pgsizeTLB]->pte = proc->mm->pgd[pgn];
-         tlb->pgd[pgn % pgsizeTLB]->pid = proc->pid;
-         return -1;
-      }
-      else
-      {
-         printf("invalid access");
-         exit(1);
-      }
+
+      tlb->pgd[pgn % pgsizeTLB]->pte = proc->mm->pgd[pgn];
+      tlb->pgd[pgn % pgsizeTLB]->pid = proc->pid;
+      return -1;
    }
    return 0;
 }
@@ -89,6 +82,8 @@ int tlb_cache_read(struct pcb_t *proc, int pid, int32_t vmaddr, BYTE *value)
     *      direct mapped, associated mapping etc.
     */
    // int pgn = PAGING_PGN(vmaddr);
+   printf("tlb_cache_read\n");
+
    int off = PAGING_OFFST(vmaddr);
    int pgn = PAGING_PGN(vmaddr);
    int fpn;
@@ -128,6 +123,7 @@ int tlb_cache_write(struct pcb_t *proc, int pid, int vmaddr, BYTE *value)
     *      cache line by employing:
     *      direct mapped, associated mapping etc.
     */
+   printf("tlb_cache_write\n");
    int off = PAGING_OFFST(vmaddr);
    int fpn;
    int pgn = PAGING_PGN(vmaddr);
