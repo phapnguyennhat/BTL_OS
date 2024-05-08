@@ -82,7 +82,7 @@ int pte_set_fpn(uint32_t *pte, int fpn)
 /*
  * vmap_page_range - map a range of page at aligned address
  */
-// THực hiện ánh xạ một phạm vi các trang frames vào không gian ảo page
+// ánh xạ pgnum vào frames cập nhật frame đã dùng
 int vmap_page_range(struct pcb_t *caller,           // process call
                     int addr,                       // start address which is aligned to pagesz
                     int pgnum,                      // num of mapping page
@@ -90,7 +90,7 @@ int vmap_page_range(struct pcb_t *caller,           // process call
                     struct vm_rg_struct *ret_rg)    // return mapped region, the real mapped fp
 {                                                   // no guarantee all given pages are mapped
   // uint32_t * pte = malloc(sizeof(uint32_t));
-  struct framephy_struct *fpit = malloc(sizeof(struct framephy_struct));
+  struct framephy_struct *fpit = frames;
   // int  fpn;
   int pgit = 0;
   int pgn = PAGING_PGN(addr); // số trang bắt đầu
@@ -107,14 +107,15 @@ int vmap_page_range(struct pcb_t *caller,           // process call
    */
   for (; pgit < pgnum; ++pgit)
   {
-    fpit = frames;
+
     if (fpit == NULL)
       break;
-    pte_set_fpn(&caller->mm->pgd[pgn + pgit], fpit->fpn);
-    frames = frames->fp_next;
+    pte_set_fpn(&caller->mm->pgd[pgn + pgit], fpit->fpn); // set fpn cho pte
     // free(fpit);
     enlist_pgn_node(&caller->mm->fifo_pgn, pgn + pgit);
+    fpit = fpit->fp_next;
   }
+  caller->mram->used_fp_list = frames; // lưu lại frames đã sử dụng trong mram
 
   /* Tracking for later page replacement activities (if needed)
    * Enqueue new usage page */
@@ -187,7 +188,7 @@ int vm_map_ram(struct pcb_t *caller, int astart, int aend, int mapstart, int inc
    *in endless procedure of swap-off to get frame and we have not provide
    *duplicate control mechanism, keep it simple
    */
-  ret_alloc = alloc_pages_range(caller, incpgnum, &frm_lst);
+  ret_alloc = alloc_pages_range(caller, incpgnum, &frm_lst); // cấp frame trống cho incpgnum, giảm free_frame
 
   if (ret_alloc < 0 && ret_alloc != -3000)
     return -1;
@@ -203,7 +204,7 @@ int vm_map_ram(struct pcb_t *caller, int astart, int aend, int mapstart, int inc
 
   /* it leaves the case of memory is enough but half in ram, half in swap
    * do the swaping all to swapper to get the all in ram */
-  vmap_page_range(caller, mapstart, incpgnum, frm_lst, ret_rg);
+  vmap_page_range(caller, mapstart, incpgnum, frm_lst, ret_rg); // lưu vào frame đã dùng
 
   return 0;
 }

@@ -82,6 +82,12 @@ struct framephy_struct
    struct mm_struct *owner;
 };
 
+struct node_pte
+{
+   uint32_t pte;
+   int pid;
+};
+
 struct memphy_struct
 {
    /* Basic field of data and size */
@@ -89,9 +95,9 @@ struct memphy_struct
    int maxsz;     // Kích thước tối đa của storage
 
    /* Sequential device fields */
-   int rdmflg; // định nghĩa bộ nhớ truy cập ngẫu nhiên hay tuần tự
-   int cursor; // COn trỏ để theo dõi vị trí hiện tạitrong quá trình đọc ghi dl vào storage
-
+   int rdmflg;            // định nghĩa bộ nhớ truy cập ngẫu nhiên hay tuần tự
+   int cursor;            // COn trỏ để theo dõi vị trí hiện tạitrong quá trình đọc ghi dl vào storage
+   struct node_pte **pgd; // list pte only TLB;
    /* Management structure */
    struct framephy_struct *free_fp_list;
    struct framephy_struct *used_fp_list;

@@ -215,7 +215,7 @@ int pg_getpage(struct mm_struct *mm, int pgn, int *fpn, struct pcb_t *caller)
     int vicfpn;                  // viction frame number
     uint32_t vicpte;             // viction page table entry
 
-    int tgtfpn = PAGING_SWP(pte); // the target frame storing our variable 12-0
+    int tgtfpn = PAGING_SWP(pte); // the target frame storing our variable
 
     /* TODO: Play with your paging theory here */
     /* Find victim page */
