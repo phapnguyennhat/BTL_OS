@@ -22,7 +22,7 @@
 
 #define init_tlbcache(mp, sz, ...) init_memphy(mp, sz, (1, ##__VA_ARGS__))
 
-int tlb_cache_setup(struct pcb_t *proc, int pid, int vmaddr, int *fpn)
+int tlb_cache_setup(struct pcb_t *proc, int pid, int pgn, int *fpn)
 {
    // * kiểm tra pte của pgn đã có trong tlb chưa
    //* có trả về fpn (HIT)
@@ -31,12 +31,19 @@ int tlb_cache_setup(struct pcb_t *proc, int pid, int vmaddr, int *fpn)
    //* nếu có trong main memory --> đưa frame vào ptd ;
    // timeline để lưu pte mới dùng gần đây
    struct memphy_struct *tlb = proc->tlb;
-   int pgn = PAGING_PGN(vmaddr);
+   if (tlb == NULL)
+   {
+      printf("chua cap phat tlb");
+      exit(1);
+   }
+   // int pgn = PAGING_PGN(vmaddr);
    int pgsizeTLB = tlb->maxsz / (int)PAGE_SIZE; // 64
-   if (proc->mm->pgd[pgn] == tlb->pgd[pgn % pgsizeTLB]->pte)
+   if (proc->mm->pgd[pgn] == tlb->pgd[pgn % pgsizeTLB]->pte && PAGING_PAGE_PRESENT(tlb->pgd[pgn % pgsizeTLB]->pte))
    {
       // hit return 0;
       // accessible to fpn
+      // if (pg_getpage(proc->mm, pgn, fpn, proc) != 0) // get_page trong ram
+      //    return -3000;
       if (proc->pid == tlb->pgd[pgn % pgsizeTLB]->pid)
       {
          uint32_t pte = tlb->pgd[pgn]->pte;
@@ -83,18 +90,19 @@ int tlb_cache_read(struct pcb_t *proc, int pid, int32_t vmaddr, BYTE *value)
     */
    // int pgn = PAGING_PGN(vmaddr);
    int off = PAGING_OFFST(vmaddr);
+   int pgn = PAGING_PGN(vmaddr);
    int fpn;
    struct memphy_struct *tlb = proc->tlb;
    if (tlb == NULL)
       return -3000;
-   if (tlb_cache_setup(proc, pid, vmaddr, &fpn) != 0)
+   if (tlb_cache_setup(proc, pid, pgn, &fpn) != 0)
    {
       // miss
       int phyaddr = (fpn << PAGING_ADDR_FPN_LOBIT) + off;
       TLBMEMPHY_read(tlb, phyaddr, value);
       return -1;
    }
-   else if (tlb_cache_setup(proc, pid, vmaddr, &fpn) == 0)
+   else if (tlb_cache_setup(proc, pid, pgn, &fpn) == 0)
    {
       // hit
       int phyaddr = (fpn << PAGING_ADDR_FPN_LOBIT) + off;
@@ -122,10 +130,11 @@ int tlb_cache_write(struct pcb_t *proc, int pid, int vmaddr, BYTE *value)
     */
    int off = PAGING_OFFST(vmaddr);
    int fpn;
+   int pgn = PAGING_PGN(vmaddr);
    struct memphy_struct *tlb = proc->tlb;
    if (tlb == NULL)
       return -1;
-   if (tlb_cache_setup(proc, pid, vmaddr, &fpn) != 0)
+   if (tlb_cache_setup(proc, pid, pgn, &fpn) != 0)
    {
       // miss
       int phyaddr = (fpn << PAGING_ADDR_FPN_LOBIT) + off;
@@ -212,12 +221,13 @@ int TLBMEMPHY_dump(struct memphy_struct *mp)
  */
 int init_tlbmemphy(struct memphy_struct *mp, int max_size)
 {
+
    mp->storage = (BYTE *)malloc(max_size * sizeof(BYTE));
    mp->maxsz = max_size;
 
    mp->rdmflg = 1;
-   int fgnum = max_size / PAGE_SIZE;
-   MEMPHY_format(mp, PAGE_SIZE); // tạo ra 64 frame trống trong free_list
+   int fgnum = DIV_ROUND_UP(max_size, PAGE_SIZE);
+   // MEMPHY_format(mp, PAGE_SIZE); // tạo ra 64 frame trống trong free_list
    mp->pgd = malloc(fgnum * sizeof(struct node_pte *));
    for (int i = 0; i < fgnum; i++)
    {

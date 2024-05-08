@@ -59,15 +59,16 @@ int tlballoc(struct pcb_t *proc, uint32_t size, uint32_t reg_index)
   /* by using tlb_cache_read()/tlb_cache_write()*/
   // printf("pgnum-start: %d", PAGING_PGN(addr));
   // printf("pgnum-end: %d", PAGING_PGN((addr + size)));
-  struct memphy_struct *tlb = proc->tlb;
-  int fpnumTLB = tlb->maxsz / PAGE_SIZE; // số frame trong tlb
-
+  // struct memphy_struct *tlb = proc->tlb;
+  // if (tlb == NULL)
+  //   return -1;
+  // int fpnumTLB = DIV_ROUND_UP(tlb->maxsz, PAGE_SIZE); // số frame trong tlb
+  int fpn;
   int pgn_start = PAGING_PGN(addr);
   int pgn_end = PAGING_PGN((addr + size));
   for (int pgn = pgn_start; pgn <= pgn_end; pgn++)
   {
-    tlb->pgd[pgn % fpnumTLB]->pte = proc->mm->pgd[pgn];
-    tlb->pgd[pgn % fpnumTLB]->pid = proc->pid;
+    tlb_cache_setup(proc, proc->pid, pgn, &fpn);
   }
 
   return val;
@@ -85,17 +86,16 @@ int tlbfree_data(struct pcb_t *proc, uint32_t reg_index)
   /* TODO update TLB CACHED frame num of freed page(s)*/
   /* by using tlb_cache_read()/tlb_cache_write()*/
 
-  struct memphy_struct *tlb = proc->tlb;
+  int fpn;
   unsigned long rg_start = proc->mm->symrgtbl[reg_index].rg_start;
   unsigned long rg_end = proc->mm->symrgtbl[reg_index].rg_end;
-  int fpnumTLB = tlb->maxsz / PAGE_SIZE; // số frame trong tlb
+  // int fpnumTLB = tlb->maxsz / PAGE_SIZE; // số frame trong tlb
 
   int pgn_start = PAGING_PGN(rg_start);
   int pgn_end = PAGING_PGN((rg_end));
   for (int pgn = pgn_start; pgn <= pgn_end; pgn++)
   {
-    tlb->pgd[pgn % fpnumTLB]->pte = proc->mm->pgd[pgn];
-    tlb->pgd[pgn % fpnumTLB]->pid = proc->pid;
+    tlb_cache_setup(proc, proc->pid, pgn, &fpn);
   }
   return 0;
 }

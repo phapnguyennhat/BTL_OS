@@ -255,6 +255,7 @@ int pg_getpage(struct mm_struct *mm, int pgn, int *fpn, struct pcb_t *caller)
 
 #ifdef CPU_TLB
     /* Update its online status of TLB (if needed) */
+
 #endif
     // lưu page mới swap in vào fifo_pgn
     enlist_pgn_node(&caller->mm->fifo_pgn, pgn);
