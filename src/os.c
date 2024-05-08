@@ -94,6 +94,9 @@ static void *cpu_routine(void *args)
 		{
 			/* No process to run, exit */
 			printf("\tCPU %d stopped\n", id);
+#ifdef CPU_TLB
+			tlb_flush_tlb_of(proc, proc->tlb);
+#endif
 			break;
 		}
 		else if (proc == NULL)
@@ -191,7 +194,7 @@ static void read_config(const char *path)
 #endif
 
 #ifdef MM_PAGING
-	// int sit;
+	int sit;
 #ifdef MM_FIXED_MEMSZ
 	/* We provide here a back compatible with legacy OS simulatiom config file
 	 * In which, it have no addition config line for Mema, keep only one line

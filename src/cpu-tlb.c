@@ -21,6 +21,13 @@ int tlb_change_all_page_tables_of(struct pcb_t *proc, struct memphy_struct *mp)
   /* TODO update all page table directory info
    *      in flush or wipe TLB (if needed)
    */
+
+  return 0;
+}
+
+int tlb_flush_tlb_of(struct pcb_t *proc, struct memphy_struct *mp)
+{
+  /* TODO flush tlb cached*/
   printf("Flush cache:\n");
   struct memphy_struct *tlb = proc->tlb;
   int fpnum = tlb->maxsz / PAGE_SIZE;
@@ -29,12 +36,6 @@ int tlb_change_all_page_tables_of(struct pcb_t *proc, struct memphy_struct *mp)
     free(tlb->pgd[i]);
   }
   free(tlb->pgd);
-  return 0;
-}
-
-int tlb_flush_tlb_of(struct pcb_t *proc, struct memphy_struct *mp)
-{
-  /* TODO flush tlb cached*/
 
   return 0;
 }

@@ -127,6 +127,7 @@ int init_tlbmemphy(struct memphy_struct *mp, int max_size);
 int TLBMEMPHY_read(struct memphy_struct *mp, int addr, BYTE *value);
 int TLBMEMPHY_write(struct memphy_struct *mp, int addr, BYTE data);
 int TLBMEMPHY_dump(struct memphy_struct *mp);
+// CPU_TLB_CACHE
 int tlb_cache_setup(struct pcb_t *proc, int pid, int vmaddr, int *fpn);
 int tlb_cache_read(struct pcb_t *proc, int pid, int vmaddr, BYTE *value);
 int tlb_cache_write(struct pcb_t *proc, int pid, int vmaddr, BYTE *value);
