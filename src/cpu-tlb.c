@@ -28,14 +28,16 @@ int tlb_change_all_page_tables_of(struct pcb_t *proc, struct memphy_struct *mp)
 int tlb_flush_tlb_of(struct pcb_t *proc, struct memphy_struct *mp)
 {
   /* TODO flush tlb cached*/
+  if (mp == NULL || proc == NULL)
+    return -1;
   printf("Flush cache:\n");
-  struct memphy_struct *tlb = proc->tlb;
-  int fpnum = tlb->maxsz / PAGE_SIZE;
+  // struct memphy_struct *tlb = proc->tlb;
+  int fpnum = mp->maxsz / PAGE_SIZE;
   for (int i = 0; i < fpnum; i++)
   {
-    free(tlb->pgd[i]);
+    free(mp->pgd[i]);
   }
-  free(tlb->pgd);
+  free(mp->pgd);
 
   return 0;
 }

@@ -129,6 +129,10 @@ static void *ld_routine(void *args)
 	struct memphy_struct **mswp = ((struct mmpaging_ld_args *)args)->mswp;
 	struct memphy_struct *active_mswp = ((struct mmpaging_ld_args *)args)->active_mswp;
 	struct timer_id_t *timer_id = ((struct mmpaging_ld_args *)args)->timer_id;
+
+#ifdef CPU_TLB
+	struct memphy_struct *tlb = ((struct mmpaging_ld_args *)args)->tlb;
+#endif
 #else
 	struct timer_id_t *timer_id = (struct timer_id_t *)args;
 #endif
@@ -150,6 +154,9 @@ static void *ld_routine(void *args)
 		proc->mram = mram;
 		proc->mswp = mswp;
 		proc->active_mswp = active_mswp;
+#ifdef CPU_TLB
+		proc->tlb = tlb;
+#endif
 #endif
 		printf("\tLoaded a process at %s, PID: %d PRIO: %ld\n",
 					 ld_processes.path[i], proc->pid, ld_processes.prio[i]);
@@ -211,11 +218,11 @@ static void read_config(const char *path)
 	 *        MEM_RAM_SZ MEM_SWP0_SZ MEM_SWP1_SZ MEM_SWP2_SZ MEM_SWP3_SZ
 	 */
 
-	// fscanf(file, "%d\n", &memramsz);
-	// for(sit = 0; sit < PAGING_MAX_MMSWP; sit++)
-	// 	fscanf(file, "%d", &(memswpsz[sit]));
+	fscanf(file, "%d\n", &memramsz);
+	for (sit = 0; sit < PAGING_MAX_MMSWP; sit++)
+		fscanf(file, "%d", &(memswpsz[sit]));
 
-	// fscanf(file, "\n"); /* Final character */
+	fscanf(file, "\n"); /* Final character */
 
 #endif
 #endif
