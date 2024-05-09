@@ -29,7 +29,7 @@ int tlb_cache_setup(struct pcb_t *proc, int pid, int pgn, int *fpn)
    //*k có dùng pgn để truy suất trong main memory (MISS)
    //* nếu k có trong main memory --> thay trang và đưa frame tương ứng vào ptd (page fault)
    //* nếu có trong main memory --> đưa frame vào ptd ;
-   // timeline để lưu pte mới dùng gần đây
+
    struct memphy_struct *tlb = proc->tlb;
    if (tlb == NULL)
    {
@@ -38,32 +38,45 @@ int tlb_cache_setup(struct pcb_t *proc, int pid, int pgn, int *fpn)
    }
    // int pgn = PAGING_PGN(vmaddr);
    int pgsizeTLB = tlb->maxsz / (int)PAGE_SIZE; // 64
-   if (proc->mm->pgd[pgn] == tlb->pgd[pgn % pgsizeTLB]->pte && PAGING_PAGE_PRESENT(tlb->pgd[pgn % pgsizeTLB]->pte))
+
+   if (proc->mm->pgd[pgn] == tlb->pgd[pgn % pgsizeTLB].pte)
    {
       // hit return 0;
       // accessible to fpn
       // if (pg_getpage(proc->mm, pgn, fpn, proc) != 0) // get_page trong ram
       //    return -3000;
-      if (proc->pid == tlb->pgd[pgn % pgsizeTLB]->pid)
+      if (proc->pid == tlb->pgd[pgn % pgsizeTLB].pid)
       {
-         uint32_t pte = tlb->pgd[pgn]->pte;
+         if (!PAGING_PAGE_PRESENT(tlb->pgd[pgn % pgsizeTLB].pte))
+         {
+            // page fault
+            if (pg_getpage(proc->mm, pgn, fpn, proc))
+            {
+               printf("invalid page");
+               exit(1);
+            }
+            tlb->pgd[pgn % pgsizeTLB].pte = proc->mm->pgd[pgn];
+         }
+
+         uint32_t pte = tlb->pgd[pgn % pgsizeTLB].pte;
          *fpn = PAGING_FPN(pte);
          return 0;
       }
       else
       {
-         printf("invalid access");
+         printf("pid access fail");
          exit(1);
       }
    }
    else
    {
       // miss return -1;
-      if (pg_getpage(proc->mm, pgn, fpn, proc) != 0) // get_page trong ram
-         return -3000;                               /* invalid page access */
+      // if (pg_getpage(proc->mm, pgn, fpn, proc) != 0) // get_page trong ram
+      //    return -3000;                               /* invalid page access */
+      // printf("pte trong setup_cache-miss: %08x\n", proc->mm->pgd[pgn]);
 
-      tlb->pgd[pgn % pgsizeTLB]->pte = proc->mm->pgd[pgn];
-      tlb->pgd[pgn % pgsizeTLB]->pid = proc->pid;
+      tlb->pgd[pgn % pgsizeTLB].pte = proc->mm->pgd[pgn];
+      tlb->pgd[pgn % pgsizeTLB].pid = proc->pid;
       return -1;
    }
    return 0;
@@ -82,7 +95,6 @@ int tlb_cache_read(struct pcb_t *proc, int pid, int32_t vmaddr, BYTE *value)
     *      direct mapped, associated mapping etc.
     */
    // int pgn = PAGING_PGN(vmaddr);
-   printf("tlb_cache_read\n");
 
    int off = PAGING_OFFST(vmaddr);
    int pgn = PAGING_PGN(vmaddr);
@@ -97,7 +109,7 @@ int tlb_cache_read(struct pcb_t *proc, int pid, int32_t vmaddr, BYTE *value)
       TLBMEMPHY_read(tlb, phyaddr, value);
       return -1;
    }
-   else if (tlb_cache_setup(proc, pid, pgn, &fpn) == 0)
+   else
    {
       // hit
       int phyaddr = (fpn << PAGING_ADDR_FPN_LOBIT) + off;
@@ -123,16 +135,17 @@ int tlb_cache_write(struct pcb_t *proc, int pid, int vmaddr, BYTE *value)
     *      cache line by employing:
     *      direct mapped, associated mapping etc.
     */
-   printf("tlb_cache_write\n");
    int off = PAGING_OFFST(vmaddr);
    int fpn;
    int pgn = PAGING_PGN(vmaddr);
+   // printf("page write %d \n", pgn);
    struct memphy_struct *tlb = proc->tlb;
    if (tlb == NULL)
       return -1;
    if (tlb_cache_setup(proc, pid, pgn, &fpn) != 0)
    {
       // miss
+      // printf("write miss\n");
       int phyaddr = (fpn << PAGING_ADDR_FPN_LOBIT) + off;
       TLBMEMPHY_write(tlb, phyaddr, *value);
       return -1;
@@ -224,15 +237,12 @@ int init_tlbmemphy(struct memphy_struct *mp, int max_size)
    mp->rdmflg = 1;
    int fgnum = DIV_ROUND_UP(max_size, PAGE_SIZE);
    // MEMPHY_format(mp, PAGE_SIZE); // tạo ra 64 frame trống trong free_list
-   mp->pgd = malloc(fgnum * sizeof(struct node_pte *));
+   mp->pgd = malloc(fgnum * sizeof(struct node_pte));
    for (int i = 0; i < fgnum; i++)
    {
-      mp->pgd[i] = malloc(sizeof(struct node_pte));
-      if (mp->pgd[i] != NULL)
-      {
-         mp->pgd[i]->pid = -1;
-         mp->pgd[i]->pte = -1;
-      }
+
+      mp->pgd[i].pid = -1;
+      mp->pgd[i].pte = -1;
    }
    return 0;
 }

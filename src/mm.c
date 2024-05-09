@@ -95,8 +95,8 @@ int vmap_page_range(struct pcb_t *caller,           // process call
   int pgit = 0;
   int pgn = PAGING_PGN(addr); // số trang bắt đầu
 
-  ret_rg->rg_start = addr; // at least the very first space is usable
-  ret_rg->rg_end = ret_rg->rg_start + pgnum * PAGING_PAGESZ;
+  ret_rg->rg_end = ret_rg->rg_start = addr; // at least the very first space is usable
+
   // trả về vùng nhớ được ánh xạ
 
   // fpit->fp_next = frames;
@@ -105,20 +105,26 @@ int vmap_page_range(struct pcb_t *caller,           // process call
    *      [addr to addr + pgnum*PAGING_PAGESZ
    *      in page table caller->mm->pgd[]
    */
+  uint32_t pte;
+  init_pte(&pte, 1, 1, 0, 0, 0, 0);
   for (; pgit < pgnum; ++pgit)
   {
 
     if (fpit == NULL)
       break;
-    pte_set_fpn(&caller->mm->pgd[pgn + pgit], fpit->fpn); // set fpn cho pte
+    pte_set_swap(&pte, 0, 0);
+    pte_set_fpn(&pte, fpit->fpn); // set fpn cho pte
     // free(fpit);
-    enlist_pgn_node(&caller->mm->fifo_pgn, pgn + pgit);
+    caller->mm->pgd[pgn + pgit] = pte;
+    ret_rg->rg_end += PAGING_PAGESZ;
     fpit = fpit->fp_next;
+    enlist_pgn_node(&caller->mm->fifo_pgn, pgn + pgit);
   }
   caller->mram->used_fp_list = frames; // lưu lại frames đã sử dụng trong mram
 
   /* Tracking for later page replacement activities (if needed)
    * Enqueue new usage page */
+  ;
 
   return 0;
 }
@@ -142,6 +148,8 @@ int alloc_pages_range(struct pcb_t *caller, int req_pgnum, struct framephy_struc
     {
       newfp_str = malloc(sizeof(struct framephy_struct));
       newfp_str->fpn = fpn;
+      newfp_str->fp_next = *frm_lst;
+      *frm_lst = newfp_str;
     }
     else
     { // ERROR CODE of obtaining somes but not enough frames
@@ -151,6 +159,7 @@ int alloc_pages_range(struct pcb_t *caller, int req_pgnum, struct framephy_struc
 
       if (find_victim_page(caller->mm, &vicpgn) == -1 || MEMPHY_get_freefp(caller->active_mswp, &swpfpn))
       {
+        printf("Khong tim thay victm page hoac frame trong\n");
         return -3000;
       }
       newfp_str = malloc(sizeof(struct framephy_struct));
@@ -159,9 +168,9 @@ int alloc_pages_range(struct pcb_t *caller, int req_pgnum, struct framephy_struc
       __swap_cp_page(caller->mram, vicfpn, caller->active_mswp, swpfpn);
       pte_set_swap(&caller->mm->pgd[vicpgn], 0, swpfpn);
       newfp_str->fpn = vicfpn;
+      newfp_str->fp_next = *frm_lst;
+      *frm_lst = newfp_str;
     }
-    newfp_str->fp_next = *frm_lst;
-    *frm_lst = newfp_str;
   }
 
   return 0;

@@ -18,6 +18,7 @@ static int done = 0;
 
 #ifdef CPU_TLB
 static int tlbsz;
+struct memphy_struct *del_tlb;
 #endif
 
 #ifdef MM_PAGING
@@ -60,13 +61,11 @@ static void *cpu_routine(void *args)
 	struct pcb_t *proc = NULL;
 	while (1)
 	{
-		usleep(3);
 		/* Check the status of current process */
 		if (proc == NULL)
 		{
 			/* No process is running, the we load new process from
 			 * ready queue */
-			usleep(3);
 
 			proc = get_proc();
 			if (proc == NULL)
@@ -81,7 +80,6 @@ static void *cpu_routine(void *args)
 			printf("\tCPU %d: Processed %2d has finished\n",
 						 id, proc->pid);
 			free(proc);
-			usleep(3);
 
 			proc = get_proc();
 			time_left = 0;
@@ -92,7 +90,6 @@ static void *cpu_routine(void *args)
 			printf("\tCPU %d: Put process %2d to run queue\n",
 						 id, proc->pid);
 			put_proc(proc);
-			usleep(20);
 
 			proc = get_proc();
 		}
@@ -103,7 +100,7 @@ static void *cpu_routine(void *args)
 			/* No process to run, exit */
 			printf("\tCPU %d stopped\n", id);
 #ifdef CPU_TLB
-			tlb_flush_tlb_of(proc, proc->tlb);
+			tlb_flush_tlb_of(del_tlb);
 #endif
 			break;
 		}
@@ -116,7 +113,7 @@ static void *cpu_routine(void *args)
 		}
 		else if (time_left == 0)
 		{
-			usleep(5);
+			// usleep(5);
 			printf("\tCPU %d: Dispatched process %2d\n",
 						 id, proc->pid);
 			time_left = time_slot;
@@ -141,6 +138,9 @@ static void *ld_routine(void *args)
 
 #ifdef CPU_TLB
 	struct memphy_struct *tlb = ((struct mmpaging_ld_args *)args)->tlb;
+	if (del_tlb == NULL)
+		del_tlb = ((struct mmpaging_ld_args *)args)->tlb;
+
 #endif
 #else
 	struct timer_id_t *timer_id = (struct timer_id_t *)args;
@@ -288,6 +288,7 @@ int main(int argc, char *argv[])
 #ifdef CPU_TLB
 	struct memphy_struct tlb;
 	init_tlbmemphy(&tlb, tlbsz);
+
 #endif
 
 #ifdef MM_PAGING

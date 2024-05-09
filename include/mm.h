@@ -118,7 +118,7 @@ int init_mm(struct mm_struct *mm, struct pcb_t *caller);
 
 /* CPUTLB prototypes */
 int tlb_change_all_page_tables_of(struct pcb_t *proc, struct memphy_struct *mp);
-int tlb_flush_tlb_of(struct pcb_t *proc, struct memphy_struct *mp);
+int tlb_flush_tlb_of(struct memphy_struct *mp);
 int tlballoc(struct pcb_t *proc, uint32_t size, uint32_t reg_index);
 int tlbfree_data(struct pcb_t *proc, uint32_t reg_index);
 int tlbread(struct pcb_t *proc, uint32_t source, uint32_t offset, uint32_t destination);
@@ -162,7 +162,6 @@ int MEMPHY_read(struct memphy_struct *mp, int addr, BYTE *value);
 int MEMPHY_write(struct memphy_struct *mp, int addr, BYTE data);
 int MEMPHY_dump(struct memphy_struct *mp);
 int init_memphy(struct memphy_struct *mp, int max_size, int randomflg);
-int MEMPHY_format(struct memphy_struct *mp, int pagesz);
 /* DEBUG */
 int print_list_fp(struct framephy_struct *fp);
 int print_list_rg(struct vm_rg_struct *rg);

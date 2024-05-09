@@ -57,7 +57,7 @@ struct pcb_t *get_mlq_proc(void)
 	pthread_mutex_lock(&queue_lock);
 	for (int i = 0; i < MAX_PRIO; i++)
 	{
-		if (empty(&mlq_ready_queue[i]) || slot[i] == 0)
+		if (slot[i] <= 0)
 		{
 			slot[i] = MAX_PRIO - i;
 			continue;

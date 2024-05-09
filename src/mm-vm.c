@@ -169,7 +169,6 @@ int __free(struct pcb_t *caller, int vmaid, int rgid)
   pthread_mutex_unlock(&mmvn_lock);
 
   enlist_vm_freerg_list(caller->mm, rgnode);
-  printf("Free done\n");
   return 0;
 }
 
@@ -251,6 +250,7 @@ int pg_getpage(struct mm_struct *mm, int pgn, int *fpn, struct pcb_t *caller)
     // pte_set_fpn() & mm->pgd[pgn];
     // * cập nhật bit cho tgtfpn
     pte_set_fpn(&mm->pgd[pgn], tgtfpn);
+    printf("pte trong get_page: %08x\n", mm->pgd[0]);
 
 #ifdef CPU_TLB
     /* Update its online status of TLB (if needed) */
@@ -503,12 +503,12 @@ int inc_vma_limit(struct pcb_t *caller, int vmaid, int inc_sz)
 
   /* The obtained vm area (only)
    * now will be alloc real ram region */
-  cur_vma->vm_end += inc_sz;
-  cur_vma->sbrk += inc_sz;
+  // cur_vma->sbrk += inc_sz;
   if (vm_map_ram(caller, area->rg_start, area->rg_end,
                  old_end, incnumpage, newrg) < 0)
     return -1; /* Map the memory to MEMRAM */
 
+  cur_vma->vm_end += inc_sz;
   return 0;
 }
 

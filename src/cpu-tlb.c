@@ -25,19 +25,20 @@ int tlb_change_all_page_tables_of(struct pcb_t *proc, struct memphy_struct *mp)
   return 0;
 }
 
-int tlb_flush_tlb_of(struct pcb_t *proc, struct memphy_struct *mp)
+int tlb_flush_tlb_of(struct memphy_struct *mp)
 {
   /* TODO flush tlb cached*/
-  if (mp == NULL || proc == NULL)
+  if (mp == NULL || mp->pgd == NULL)
     return -1;
-  printf("Flush cache:\n");
+  // printf("Flush cache:\n");
   // struct memphy_struct *tlb = proc->tlb;
   int fpnum = mp->maxsz / PAGE_SIZE;
   for (int i = 0; i < fpnum; i++)
   {
-    free(mp->pgd[i]);
+    // printf("pte: %d , pid: %d \n", mp->pgd[i].pte, mp->pgd[i].pid);
   }
   free(mp->pgd);
+  mp->pgd = NULL;
 
   return 0;
 }
@@ -50,6 +51,7 @@ int tlb_flush_tlb_of(struct pcb_t *proc, struct memphy_struct *mp)
 int tlballoc(struct pcb_t *proc, uint32_t size, uint32_t reg_index)
 {
   int addr, val;
+  // printf("tlb_alloc \n");
 
   /* By default using vmaid = 0 */
   val = __alloc(proc, 0, reg_index, size, &addr); // thực hiện alloc vào vma có id = 0
@@ -57,26 +59,20 @@ int tlballoc(struct pcb_t *proc, uint32_t size, uint32_t reg_index)
                                                   //
 
   /* TODO update TLB CACHED frame num of the new allocated page(s)*/
-  // tlb_cache_setup(proc,proc->pid, )
-  /* by using tlb_cache_read()/tlb_cache_write()*/
-  // printf("pgnum-start: %d", PAGING_PGN(addr));
-  // printf("pgnum-end: %d", PAGING_PGN((addr + size)));
-  // struct memphy_struct *tlb = proc->tlb;
-  // if (tlb == NULL)
-  //   return -1;
-  // int fpnumTLB = DIV_ROUND_UP(tlb->maxsz, PAGE_SIZE); // số frame trong tlb
+
   int fpn;
   int pgn_start = PAGING_PGN(addr);
   int pgn_end = PAGING_PGN((addr + size));
-  printf("pgnum-start: %d \n", PAGING_PGN((addr)));
-  printf("pgnum-end: %d \n", PAGING_PGN((addr + size)));
-  printf("reg_index: %d \n", reg_index);
+  // // printf("pgnum-start: %d \n", pgn_start);
+  // // printf("pgnum-end: %d \n", pgn_end);
+  // // printf("reg_index: %d \n", reg_index);
 
   for (int pgn = pgn_start; pgn <= pgn_end; pgn++)
   {
-    printf("vong lap o alloc\n");
+    // printf("vong lap o alloc\n");
     tlb_cache_setup(proc, proc->pid, pgn, &fpn);
   }
+  printf("alloc region: %d \n", reg_index);
 
   return val;
 }
@@ -91,24 +87,28 @@ int tlbfree_data(struct pcb_t *proc, uint32_t reg_index)
 
   /* TODO update TLB CACHED frame num of freed page(s)*/
   /* by using tlb_cache_read()/tlb_cache_write()*/
+  // printf("tlb_free \n");
 
-  int fpn;
+  // int fpn;
   unsigned long rg_start = proc->mm->symrgtbl[reg_index].rg_start;
   unsigned long rg_end = proc->mm->symrgtbl[reg_index].rg_end;
   // int fpnumTLB = tlb->maxsz / PAGE_SIZE; // số frame trong tlb
   int pgn_start = PAGING_PGN(rg_start);
   int pgn_end = PAGING_PGN((rg_end));
-  printf("pgnum-start: %d \n", pgn_start);
-  printf("pgnum-end: %d \n", pgn_end);
-  printf("reg_index: %d \n", reg_index);
+  struct memphy_struct *tlb = proc->tlb;
+  // printf("pgnum-start: %d \n", pgn_start);
+  // printf("pgnum-end: %d \n", pgn_end);
+  // printf("reg_index: %d \n", reg_index);
 
   for (int pgn = pgn_start; pgn <= pgn_end; pgn++)
   {
-    printf("vong lap o free\n");
-
-    tlb_cache_setup(proc, proc->pid, pgn, &fpn);
+    // printf("vong lap o free\n");
+    // bỏ pte để tránh truy cập vào vùng nhớ đã được thu hồi
+    tlb->pgd[pgn].pte = -1;
+    tlb->pgd[pgn].pid = -1;
   }
   __free(proc, 0, reg_index);
+  printf("free region: %d \n", reg_index);
 
   return 0;
 }
@@ -123,8 +123,24 @@ int tlbread(struct pcb_t *proc, uint32_t source,
             uint32_t offset, uint32_t destination)
 
 {
+  printf("tlb_read \n");
   BYTE data;
-  int32_t vmaddr = source + offset;
+  unsigned long rg_start = proc->mm->symrgtbl[source].rg_start;
+  unsigned long rg_end = proc->mm->symrgtbl[source].rg_end;
+  // if (rg_start == rg_end)
+  // {
+  //   printf("TLB  read region=%d offset=%d segmentation fault \n",
+  //          source, offset);
+  //   exit(1);
+  // }
+
+  int32_t vmaddr = rg_start + offset;
+  if (vmaddr < rg_start || vmaddr > rg_end)
+  {
+    printf("TLB  read region=%d offset=%d out of range region \n",
+           source, offset);
+    exit(1);
+  }
 
   /* TODO retrieve TLB CACHED frame num of accessing page(s)*/
   /* by using tlb_cache_read()/tlb_cache_write()*/
@@ -162,9 +178,43 @@ int tlbread(struct pcb_t *proc, uint32_t source,
 int tlbwrite(struct pcb_t *proc, BYTE data,
              uint32_t destination, uint32_t offset)
 {
-  int val;
+  printf("tlb_write \n");
 
-  int32_t vmaddr = destination + offset;
+  int val;
+  // if (proc == NULL)
+  // {
+  //   printf("proc is null");
+  //   exit(1);
+  // }
+  // if (proc->mm == NULL)
+  // {
+  //   printf("proc -> mm is null");
+  //   exit(1);
+  // }
+  // if (proc->mm->symrgtbl == NULL)
+  // {
+  //   printf("proc -> mm->symrgtlb is null");
+  //   exit(1);
+  // }
+  // printf("loi o day ======");
+  unsigned long rg_start = proc->mm->symrgtbl[destination].rg_start;
+  unsigned long rg_end = proc->mm->symrgtbl[destination].rg_end;
+  int32_t vmaddr = rg_start + offset;
+
+  // if (rg_start == rg_end)
+  // {
+  //   printf("TLB  write region=%d offset=%d segmentation fault \n",
+  //          destination, offset);
+  //   exit(1);
+  // }
+
+  if (vmaddr < rg_start || vmaddr > rg_end)
+  {
+    printf("TLB  write region=%d offset=%d out of range region \n",
+           destination, offset);
+    exit(1);
+  }
+
   /* TODO retrieve TLB CACHED frame num of accessing page(s))*/
   /* by using tlb_cache_read()/tlb_cache_write()
   frmnum is return value of tlb_cache_read/write value*/
