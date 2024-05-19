@@ -68,7 +68,6 @@ struct vm_rg_struct *get_symrg_byid(struct mm_struct *mm, int rgid)
 {
   if (rgid < 0 || rgid > PAGING_MAX_SYMTBL_SZ)
     return NULL;
-
   return &mm->symrgtbl[rgid];
 }
 
@@ -152,9 +151,11 @@ int __alloc(struct pcb_t *caller, int vmaid, int rgid, int size, int *alloc_addr
 int __free(struct pcb_t *caller, int vmaid, int rgid)
 {
   pthread_mutex_lock(&mmvn_lock);
-
-  struct vm_rg_struct *rgnode = get_symrg_byid(caller->mm, rgid);
+  struct vm_rg_struct *rgnode = malloc(sizeof(struct vm_rg_struct));
   rgnode->rg_next = NULL;
+  rgnode->rg_start = caller->mm->symrgtbl[rgid].rg_start;
+  rgnode->rg_end = caller->mm->symrgtbl[rgid].rg_end;
+
   if (rgid < 0 || rgid > PAGING_MAX_SYMTBL_SZ)
   {
     pthread_mutex_unlock(&mmvn_lock);
@@ -232,7 +233,7 @@ int pg_getpage(struct mm_struct *mm, int pgn, int *fpn, struct pcb_t *caller)
     }
 
     vicpte = mm->pgd[vicpgn];
-    vicfpn = PAGING_FPN(vicpte);
+    vicfpn = PTE_FPN(vicpte);
 
     /* Do swap frame from MEMRAM to MEMSWP and vice versa*/
     /* Copy victim frame to swap */
@@ -250,7 +251,6 @@ int pg_getpage(struct mm_struct *mm, int pgn, int *fpn, struct pcb_t *caller)
     // pte_set_fpn() & mm->pgd[pgn];
     // * cập nhật bit cho tgtfpn
     pte_set_fpn(&mm->pgd[pgn], tgtfpn);
-    printf("pte trong get_page: %08x\n", mm->pgd[0]);
 
 #ifdef CPU_TLB
     /* Update its online status of TLB (if needed) */
@@ -260,7 +260,7 @@ int pg_getpage(struct mm_struct *mm, int pgn, int *fpn, struct pcb_t *caller)
     enlist_pgn_node(&caller->mm->fifo_pgn, pgn);
   }
 
-  *fpn = PAGING_FPN(pte); // nếu present get frame num
+  *fpn = PTE_FPN(pte); // nếu present get frame num
 
   return 0;
 }
@@ -411,7 +411,7 @@ int free_pcb_memph(struct pcb_t *caller)
 
     if (!PAGING_PAGE_PRESENT(pte))
     {
-      fpn = PAGING_FPN(pte);
+      fpn = PTE_FPN(pte);
       MEMPHY_put_freefp(caller->mram, fpn);
     }
     else

@@ -1,3 +1,5 @@
+#include <semaphore.h>
+
 #ifndef OSMM_H
 #define OSMM_H
 
@@ -98,6 +100,9 @@ struct memphy_struct
    int rdmflg;           // định nghĩa bộ nhớ truy cập ngẫu nhiên hay tuần tự
    int cursor;           // COn trỏ để theo dõi vị trí hiện tạitrong quá trình đọc ghi dl vào storage
    struct node_pte *pgd; // list pte only TLB;
+   // sem_t rw_mutex;
+   // sem_t mutex;
+   // int read_count;
    /* Management structure */
    struct framephy_struct *free_fp_list;
    struct framephy_struct *used_fp_list;

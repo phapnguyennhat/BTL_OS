@@ -163,20 +163,20 @@ int MEMPHY_dump(struct memphy_struct *mp)
     *     for tracing the memory content
     */
 
-   // printf("===== PHYSICAL MEMORY DUMP =====\n");
-   // if (mp != NULL)
-   // {
+   printf("===== PHYSICAL MEMORY DUMP =====\n");
+   if (mp != NULL)
+   {
 
-   //    for (int i = 0; i < mp->maxsz; ++i)
-   //    {
-   //       if (mp->storage[i] != 0)
-   //       {
-   //          printf("BYTE %08x: %d\n", i, mp->storage[i]);
-   //       }
-   //    }
-   // }
+      for (int i = 0; i < mp->maxsz; ++i)
+      {
+         if (mp->storage[i] != 0)
+         {
+            printf("BYTE %08x: %d\n", i, mp->storage[i]);
+         }
+      }
+   }
 
-   // printf("===== PHYSICAL MEMORY END-DUMP =====\n");
+   printf("===== PHYSICAL MEMORY END-DUMP =====\n");
    // printf("================================================================\n");
    return 0;
 }

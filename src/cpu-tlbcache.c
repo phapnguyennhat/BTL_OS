@@ -26,9 +26,8 @@ int tlb_cache_setup(struct pcb_t *proc, int pid, int pgn, int *fpn)
 {
    // * kiểm tra pte của pgn đã có trong tlb chưa
    //* có trả về fpn (HIT)
-   //*k có dùng pgn để truy suất trong main memory (MISS)
-   //* nếu k có trong main memory --> thay trang và đưa frame tương ứng vào ptd (page fault)
-   //* nếu có trong main memory --> đưa frame vào ptd ;
+   // * k co MISS
+   // * xu li page fault neu co
 
    struct memphy_struct *tlb = proc->tlb;
    if (tlb == NULL)
@@ -36,37 +35,29 @@ int tlb_cache_setup(struct pcb_t *proc, int pid, int pgn, int *fpn)
       printf("chua cap phat tlb");
       exit(1);
    }
+   if (pg_getpage(proc->mm, pgn, fpn, proc) != 0)
+   {
+      printf("fail get page");
+      exit(1);
+   }
    // int pgn = PAGING_PGN(vmaddr);
-   int pgsizeTLB = tlb->maxsz / (int)PAGE_SIZE; // 64
-
-   if (proc->mm->pgd[pgn] == tlb->pgd[pgn % pgsizeTLB].pte)
+   int pgsizeTLB = tlb->maxsz / (int)PAGE_SIZE;
+   // printf("pte mm: %08x , pte tlb: %08x, pgn: %d, fgn : %d \n", proc->mm->pgd[pgn], tlb->pgd[pgn % pgsizeTLB].pte, pgn, PTE_FPN(proc->mm->pgd[pgn]));
+   if (proc->mm->pgd[pgn] == tlb->pgd[pgn % pgsizeTLB].pte && pid == tlb->pgd[pgn % pgsizeTLB].pid)
    {
       // hit return 0;
       // accessible to fpn
       // if (pg_getpage(proc->mm, pgn, fpn, proc) != 0) // get_page trong ram
       //    return -3000;
-      if (proc->pid == tlb->pgd[pgn % pgsizeTLB].pid)
-      {
-         if (!PAGING_PAGE_PRESENT(tlb->pgd[pgn % pgsizeTLB].pte))
-         {
-            // page fault
-            if (pg_getpage(proc->mm, pgn, fpn, proc))
-            {
-               printf("invalid page");
-               exit(1);
-            }
-            tlb->pgd[pgn % pgsizeTLB].pte = proc->mm->pgd[pgn];
-         }
+      // page fault
 
-         uint32_t pte = tlb->pgd[pgn % pgsizeTLB].pte;
-         *fpn = PAGING_FPN(pte);
-         return 0;
-      }
-      else
-      {
-         printf("pid access fail");
-         exit(1);
-      }
+      // tlb->pgd[pgn % pgsizeTLB].pte = proc->mm->pgd[pgn];
+
+      // uint32_t pte = tlb->pgd[pgn % pgsizeTLB].pte;
+      // *fpn = PAGING_FPN(pte);
+      // printf("HIT \n");
+
+      return 0;
    }
    else
    {
@@ -77,6 +68,7 @@ int tlb_cache_setup(struct pcb_t *proc, int pid, int pgn, int *fpn)
 
       tlb->pgd[pgn % pgsizeTLB].pte = proc->mm->pgd[pgn];
       tlb->pgd[pgn % pgsizeTLB].pid = proc->pid;
+      // printf("MISS \n");
       return -1;
    }
    return 0;
@@ -100,19 +92,20 @@ int tlb_cache_read(struct pcb_t *proc, int pid, int32_t vmaddr, BYTE *value)
    int pgn = PAGING_PGN(vmaddr);
    int fpn;
    struct memphy_struct *tlb = proc->tlb;
+   int frameNum = tlb->maxsz / PAGE_SIZE;
    if (tlb == NULL)
       return -3000;
    if (tlb_cache_setup(proc, pid, pgn, &fpn) != 0)
    {
       // miss
-      int phyaddr = (fpn << PAGING_ADDR_FPN_LOBIT) + off;
+      int phyaddr = ((fpn % frameNum) << PAGING_ADDR_FPN_LOBIT) + off;
       TLBMEMPHY_read(tlb, phyaddr, value);
       return -1;
    }
    else
    {
       // hit
-      int phyaddr = (fpn << PAGING_ADDR_FPN_LOBIT) + off;
+      int phyaddr = ((fpn % frameNum) << PAGING_ADDR_FPN_LOBIT) + off;
       TLBMEMPHY_read(tlb, phyaddr, value);
       return 0;
    }
@@ -140,20 +133,22 @@ int tlb_cache_write(struct pcb_t *proc, int pid, int vmaddr, BYTE *value)
    int pgn = PAGING_PGN(vmaddr);
    // printf("page write %d \n", pgn);
    struct memphy_struct *tlb = proc->tlb;
+   int frameNum = tlb->maxsz / PAGE_SIZE;
    if (tlb == NULL)
       return -1;
    if (tlb_cache_setup(proc, pid, pgn, &fpn) != 0)
    {
       // miss
-      // printf("write miss\n");
-      int phyaddr = (fpn << PAGING_ADDR_FPN_LOBIT) + off;
+      int phyaddr = ((fpn % frameNum) << PAGING_ADDR_FPN_LOBIT) + off;
+
       TLBMEMPHY_write(tlb, phyaddr, *value);
       return -1;
    }
-   else if (tlb_cache_setup(proc, pid, vmaddr, &fpn) == 0)
+   else
    {
       // hit
-      int phyaddr = (fpn << PAGING_ADDR_FPN_LOBIT) + off;
+
+      int phyaddr = ((fpn % frameNum) << PAGING_ADDR_FPN_LOBIT) + off;
       TLBMEMPHY_write(tlb, phyaddr, *value);
       return 0;
    }
@@ -175,6 +170,7 @@ int TLBMEMPHY_read(struct memphy_struct *mp, int addr, BYTE *value)
       return -1;
 
    /* TLB cached is random access by native */
+
    *value = mp->storage[addr];
 
    return 0;
@@ -192,6 +188,7 @@ int TLBMEMPHY_write(struct memphy_struct *mp, int addr, BYTE data)
       return -1;
 
    /* TLB cached is random access by native */
+
    mp->storage[addr] = data;
 
    return 0;
@@ -207,20 +204,28 @@ int TLBMEMPHY_dump(struct memphy_struct *mp)
    /*TODO dump memphy contnt mp->storage
     *     for tracing the memory content
     */
-   // code cua phap
-   // if (mp == NULL || mp->storage == NULL)
-   //    return -1;
-   // printf("===========Dumping memory content:===========\n");
-   // for (int i = 0; i < mp->maxsz; i++)
-   // {
-   //    printf("%02X ", (unsigned char)mp->storage[i]);
-   //    if ((i + 1) % 4 == 0)
-   //       printf("\n");
-   // }
-   // if (mp->maxsz % 4 != 0)
-   //    printf("\n");
+   printf("===== TLB MEMORY DUMP =====\n");
+   if (mp != NULL)
+   {
 
-   // printf("===========END DUMP MEMORY CONTENT===========\n");
+      for (int i = 0; i < mp->maxsz; ++i)
+      {
+         if (mp->storage[i] != 0)
+         {
+            printf("BYTE %08x: %d\n", i, mp->storage[i]);
+         }
+      }
+      printf("-------------\n");
+      for (int pgn = 0; pgn < mp->maxsz / PAGE_SIZE; pgn++)
+      {
+         if (mp->pgd[pgn].pte != 0)
+         {
+            printf("PTE: %08x PID: %d \n", mp->pgd[pgn].pte, mp->pgd[pgn].pid);
+         }
+      }
+   }
+
+   printf("===== TLB MEMORY END-DUMP =====\n");
 
    return 0;
 }
@@ -241,9 +246,14 @@ int init_tlbmemphy(struct memphy_struct *mp, int max_size)
    for (int i = 0; i < fgnum; i++)
    {
 
-      mp->pgd[i].pid = -1;
-      mp->pgd[i].pte = -1;
+      mp->pgd[i].pid = 0;
+      mp->pgd[i].pte = 0;
    }
+   // sem_init(&mp->rw_mutex, 0, 1);
+   // sem_init(&mp->mutex, 0, 1);
+   // mp->read_count = 0;
+
+   printf("TLB cache size: %d , framenum: %d , frame size:%d \n", max_size, fgnum, (int)PAGE_SIZE);
    return 0;
 }
 

@@ -109,7 +109,6 @@ int vmap_page_range(struct pcb_t *caller,           // process call
   init_pte(&pte, 1, 1, 0, 0, 0, 0);
   for (; pgit < pgnum; ++pgit)
   {
-
     if (fpit == NULL)
       break;
     pte_set_swap(&pte, 0, 0);
@@ -120,6 +119,7 @@ int vmap_page_range(struct pcb_t *caller,           // process call
     fpit = fpit->fp_next;
     enlist_pgn_node(&caller->mm->fifo_pgn, pgn + pgit);
   }
+
   caller->mram->used_fp_list = frames; // lưu lại frames đã sử dụng trong mram
 
   /* Tracking for later page replacement activities (if needed)
@@ -164,7 +164,7 @@ int alloc_pages_range(struct pcb_t *caller, int req_pgnum, struct framephy_struc
       }
       newfp_str = malloc(sizeof(struct framephy_struct));
       uint32_t vicpte = caller->mm->pgd[vicpgn];
-      int vicfpn = PAGING_FPN(vicpte);
+      int vicfpn = PTE_FPN(vicpte);
       __swap_cp_page(caller->mram, vicfpn, caller->active_mswp, swpfpn);
       pte_set_swap(&caller->mm->pgd[vicpgn], 0, swpfpn);
       newfp_str->fpn = vicfpn;
