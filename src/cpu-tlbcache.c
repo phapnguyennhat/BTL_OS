@@ -249,9 +249,9 @@ int init_tlbmemphy(struct memphy_struct *mp, int max_size)
       mp->pgd[i].pid = 0;
       mp->pgd[i].pte = 0;
    }
-   // sem_init(&mp->rw_mutex, 0, 1);
-   // sem_init(&mp->mutex, 0, 1);
-   // mp->read_count = 0;
+   sem_init(&mp->rw_mutex, 0, 1);
+   sem_init(&mp->mutex, 0, 1);
+   mp->read_count = 0;
 
    printf("TLB cache size: %d , framenum: %d , frame size:%d \n", max_size, fgnum, (int)PAGE_SIZE);
    return 0;

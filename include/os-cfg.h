@@ -14,6 +14,3 @@
 #define PAGETBL_DUMP 1
 
 #endif
-
-// MM_FIXED_MEMSZ bật lên để chạy file input mà không có dòng memsz ví dụ : 1048576 16777216 0 0 0
-// CPUTLB_FIXED_TLBSZ bật lên để chạy file input mà không có dòng định nghĩa kích thước tlb

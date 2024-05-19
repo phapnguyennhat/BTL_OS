@@ -67,7 +67,7 @@ int tlballoc(struct pcb_t *proc, uint32_t size, uint32_t reg_index)
 
   /* TODO update TLB CACHED frame num of the new allocated page(s)*/
 
-  int fpn;
+  // int fpn;
   int pgn_start = PAGING_PGN(addr);
   int pgn_end = PAGING_PGN((addr + size));
   printf("----PID:%d ALLOC region: %d size: %d\n", proc->pid, reg_index, size);
@@ -75,16 +75,16 @@ int tlballoc(struct pcb_t *proc, uint32_t size, uint32_t reg_index)
   // struct memphy_struct *tlb = proc->tlb;
   // int frameNum = tlb->maxsz / PAGE_SIZE;
 
-  for (int pgn = pgn_start; pgn <= pgn_end; pgn++)
-  {
-    tlb_cache_setup(proc, proc->pid, pgn, &fpn);
-    // * collect garbage
-    // int base_addr = ((fpn % frameNum) << PAGING_ADDR_FPN_LOBIT);
-    // for (int i = 0; i < PAGE_SIZE; i++)
-    // {
-    //   tlb->storage[base_addr + i] = 0;
-    // }
-  }
+  // for (int pgn = pgn_start; pgn <= pgn_end; pgn++)
+  // {
+  //   tlb_cache_setup(proc, proc->pid, pgn, &fpn);
+  // * collect garbage
+  // int base_addr = ((fpn % frameNum) << PAGING_ADDR_FPN_LOBIT);
+  // for (int i = 0; i < PAGE_SIZE; i++)
+  // {
+  //   tlb->storage[base_addr + i] = 0;
+  // }
+  // }
   // TLBMEMPHY_dump(proc->tlb);
   return val;
 }
@@ -143,6 +143,7 @@ int tlbread(struct pcb_t *proc, uint32_t source,
             uint32_t offset, uint32_t destination)
 
 {
+  struct memphy_struct *tlb = proc->tlb;
   printf("----PID: %d READ region: %d offset: %d destination: %d\n", proc->pid, source, offset, destination);
   BYTE data;
   unsigned long rg_start = proc->mm->symrgtbl[source].rg_start;
@@ -166,6 +167,14 @@ int tlbread(struct pcb_t *proc, uint32_t source,
   /* TODO retrieve TLB CACHED frame num of accessing page(s)*/
   /* by using tlb_cache_read()/tlb_cache_write()*/
   /* frmnum is return value of tlb_cache_read/write value*/
+  sem_wait(&tlb->mutex);
+  tlb->read_count++;
+  if (tlb->read_count == 1)
+  {
+    sem_wait(&tlb->rw_mutex);
+  }
+  sem_post(&tlb->mutex);
+
   int val = __read(proc, 0, source, offset, &data);
 
 #ifdef IODUMP
@@ -180,6 +189,13 @@ int tlbread(struct pcb_t *proc, uint32_t source,
 #endif
   MEMPHY_dump(proc->mram);
 #endif
+  sem_wait(&tlb->mutex);
+  tlb->read_count--;
+  if (tlb->read_count == 0)
+  {
+    sem_post(&tlb->rw_mutex);
+  }
+  sem_post(&tlb->mutex);
 
   destination = (uint32_t)data;
   TLBMEMPHY_dump(proc->tlb);
@@ -199,6 +215,8 @@ int tlbread(struct pcb_t *proc, uint32_t source,
 int tlbwrite(struct pcb_t *proc, BYTE data,
              uint32_t destination, uint32_t offset)
 {
+  struct memphy_struct *tlb = proc->tlb;
+
   printf("----PID: %d WRITE region: %d offset: %d data: %d \n", proc->pid, destination, offset, data);
   int val;
   if (proc == NULL)
@@ -239,7 +257,7 @@ int tlbwrite(struct pcb_t *proc, BYTE data,
   /* TODO retrieve TLB CACHED frame num of accessing page(s))*/
   /* by using tlb_cache_read()/tlb_cache_write()
   frmnum is return value of tlb_cache_read/write value*/
-
+  sem_wait(&tlb->rw_mutex);
   val = __write(proc, 0, destination, offset, data);
 #ifdef IODUMP
   if (tlb_cache_write(proc, proc->pid, vmaddr, &data) >= 0)
@@ -254,7 +272,7 @@ int tlbwrite(struct pcb_t *proc, BYTE data,
   MEMPHY_dump(proc->mram);
 #endif
   TLBMEMPHY_dump(proc->tlb);
-
+  sem_post(&tlb->rw_mutex);
   /* TODO update TLB CACHED with frame num of recent accessing page(s)*/
   /* by using tlb_cache_read()/tlb_cache_write()*/
 
